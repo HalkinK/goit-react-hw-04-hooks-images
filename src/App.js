@@ -1,4 +1,4 @@
-import React from "react";
+import { useState, useEffect } from "react";
 
 import { ToastContainer } from "react-toastify";
 import "./App.css";
@@ -17,128 +17,92 @@ const Status = {
   REJECTED: "rejected",
 };
 
-class App extends React.Component {
-  state = {
-    searchQuery: "",
-    page: 1,
-    gallery: [],
-    status: "idle",
-    showModal: false,
-    currentImage: "",
-  };
+function App() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [gallery, setGallery] = useState([]);
+  const [status, setStatus] = useState(Status.IDLE);
+  const [showModal, setShowModal] = useState(false);
+  const [currentImage, setCurrentImage] = useState("");
 
-  componentDidUpdate(prevProps, prevState) {
-    const prevQuery = prevState.searchQuery;
-    const nextQuery = this.state.searchQuery;
-
-    if (prevQuery !== nextQuery) {
-      this.setState({ status: "pending" });
-      this.renderGallery();
+  useEffect(() => {
+    if (!searchQuery) {
+      return;
     }
-  }
 
-  renderGallery = () => {
-    const { searchQuery, page } = this.state;
+    const renderGallery = () => {
+      setStatus(Status.PENDING);
 
-    ApiServise.fetchImages(searchQuery, page)
-      .then((responce) => {
-        // this.loaderToggle();
+      ApiServise.fetchImages(searchQuery, page)
+        .then((responce) => {
+          setGallery((prevState) => [...prevState, ...responce.hits]);
+        })
+        .catch((error) => {
+          setStatus(Status.REJECTED);
+        })
+        .finally(() => {
+          setStatus(Status.RESOLVED);
 
-        this.setState((prevState) => ({
-          gallery: [...prevState.gallery, ...responce.hits],
-          page: prevState.page + 1,
-        }));
-      })
-      .catch((error) => this.setState({ error, status: Status.REJECTED }))
-      .finally(() => {
-        // this.loaderToggle();
-
-        this.setState({ status: Status.RESOLVED });
-
-        window.scrollTo({
-          top: document.documentElement.scrollHeight,
-          behavior: "smooth",
+          window.scrollTo({
+            top: document.documentElement.scrollHeight,
+            behavior: "smooth",
+          });
         });
-      });
+    };
+
+    renderGallery();
+  }, [searchQuery, page]);
+
+  const handleFormSubmit = (searchQuery) => {
+    setSearchQuery(searchQuery);
+    setPage(1);
+    setGallery([]);
   };
 
-  handleFormSubmit = (searchQuery) => {
-    this.setState({
-      searchQuery: searchQuery,
-      page: 1,
-      gallery: [],
-    });
+  const toggleModal = () => {
+    setShowModal(!showModal);
   };
 
-  // onLoadMore = () => {
-  //   this.setState((prevState) => ({
-  //     page: prevState.page + 1,
-  //   }));
-  // };
-
-  // loaderToggle = () => {
-  //   this.setState((prevState) => ({
-  //     loader: !prevState.loader,
-  //   }));
-  // };
-
-  toggleModal = () => {
-    this.setState(({ showModal }) => ({
-      showModal: !showModal,
-    }));
+  const onLoadMore = () => {
+    setPage((prevState) => prevState + 1);
   };
 
-  onImageClick = (e) => {
+  const onImageClick = (e) => {
     if (e.target.nodeName !== "IMG") {
       return;
     }
-    this.setState({
-      currentImage: e.target.dataset.img,
-    });
+    setCurrentImage(e.target.dataset.img);
 
-    this.toggleModal();
+    toggleModal();
   };
 
-  render() {
-    return (
-      <div className="App">
-        <Serchbar
-          onSubmit={this.handleFormSubmit}
-          value={this.state.searchQuery}
+  return (
+    <div className="App">
+      <Serchbar onSubmit={handleFormSubmit} value={searchQuery} />
+      {status === Status.PENDING && (
+        <Loader
+          type="ThreeDots"
+          color="#00BFFF"
+          height={200}
+          width={200}
+          timeout={3000} //3 secs
         />
-        {this.state.status === Status.PENDING && (
-          <Loader
-            type="ThreeDots"
-            color="#00BFFF"
-            height={200}
-            width={200}
-            timeout={3000} //3 secs
-          />
-        )}
-        {this.state.status === Status.REJECTED && (
-          <h1>{"Something went wrong"}</h1>
-        )}
-        {this.state.status === Status.RESOLVED && (
-          <>
-            <ImageGallery
-              gallery={this.state.gallery}
-              onImageClick={this.onImageClick}
-            />
+      )}
+      {status === Status.REJECTED && <h1>{"Something went wrong"}</h1>}
+      {status === Status.RESOLVED && (
+        <>
+          <ImageGallery gallery={gallery} onImageClick={onImageClick} />
 
-            <Button onClick={this.renderGallery} text={"Load more"} />
-          </>
-        )}
-        {this.state.showModal && (
-          <Modal
-            onClose={this.toggleModal}
-            imageForModal={this.state.currentImage}
-          />
-        )}
+          <Button onClick={onLoadMore} text={"Load more"} />
+        </>
+      )}
+      {showModal && (
+        <Modal onClose={toggleModal} imageForModal={currentImage} />
+      )}
 
-        <ToastContainer position="top-center" autoClose={3000} />
-      </div>
-    );
-  }
+      <ToastContainer position="top-center" autoClose={3000} />
+    </div>
+  );
 }
 
 export default App;
